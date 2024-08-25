@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Folder Management</title>
+    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+</head>
+<body>
+    <h1>Folder Management</h1>
+
+    <!-- Form to create a folder -->
+    <h2>Create Folder</h2>
+    <form id="create-folder-form">
+        <label for="folder-name">Folder Name:</label>
+        <input type="text" id="folder-name" name="folder_name" required>
+        <label for="folder-password">Folder Password:</label>
+        <input type="password" id="folder-password" name="folder_password">
+        <label for="folder-admin-password">Admin Password:</label>
+        <input type="password" id="folder-admin-password" name="folder_admin_password" required>
+        <button type="submit">Create Folder</button>
+    </form>
+
+    <!-- Form to upload files to a folder -->
+    <h2>Upload Files</h2>
+    <form id="upload-files-form">
+        <label for="folder-id-upload">Folder ID:</label>
+        <input type="text" id="folder-id-upload" name="folder_id" required>
+        <label for="admin-password-upload">Admin Password:</label>
+        <input type="password" id="admin-password-upload" name="admin_password" required>
+        <label for="files">Files:</label>
+        <input type="file" id="files" name="files" multiple required>
+        <button type="submit">Upload Files</button>
+    </form>
+
+    <!-- Section to display folder contents -->
+    <h2>Folder Contents</h2>
+    <form id="view-folder-form">
+        <label for="folder-id-view">Folder ID:</label>
+        <input type="text" id="folder-id-view" name="folder_id" required>
+        <label for="folder-password-view">Folder Password:</label>
+        <input type="password" id="folder-password-view" name="folder_password">
+        <button type="submit">View Folder</button>
+    </form>
+    <div id="folder-contents"></div>
+
+    <!-- Form to download files from a folder -->
+    <h2>Download File</h2>
+    <form id="download-file-form">
+        <label for="folder-id-download">Folder ID:</label>
+        <input type="text" id="folder-id-download" name="folder_id" required>
+        <label for="file-uuid-download">File UUID:</label>
+        <input type="text" id="file-uuid-download" name="file_uuid" required>
+        <label for="folder-password-download">Folder Password:</label>
+        <input type="password" id="folder-password-download" name="folder_password">
+        <button type="submit">Download File</button>
+    </form>
+
+    <script>
+        const serverUrl = 'https://api.nergis.dev/v2/folder';
+
+        document.getElementById('create-folder-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const data = Object.fromEntries(formData.entries());
+            const response = await fetch(`${serverUrl}/make`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            alert(`Folder created: ${result.folder_url}`);
+        });
+
+        document.getElementById('upload-files-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const folderId = formData.get('folder_id');
+            const adminPassword = formData.get('admin_password');
+            const files = formData.getAll('files');
+            const data = new FormData();
+            files.forEach(file => data.append('files', file));
+            const response = await fetch(`${serverUrl}/${folderId}/upload`, {
+                method: 'POST',
+                headers: {
+                    'X-A-Passwd': adminPassword
+                },
+                body: data
+            });
+            const result = await response.json();
+            alert(`Files uploaded: ${result.file_uuid.join(', ')}`);
+        });
+
+        document.getElementById('view-folder-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const folderId = formData.get('folder_id');
+            const folderPassword = formData.get('folder_password');
+            const response = await fetch(`${serverUrl}/${folderId}`, {
+                method: 'GET',
+                headers: {
+                    'X-F-Passwd': folderPassword
+                }
+            });
+            const data = await response.json();
+            const files = data.folder_contents;
+            if (!Array.isArray(files)) {
+                console.error('Server response is not an array');
+                console.log(data)
+                return;
+            };
+            const folderContentsDiv = document.getElementById('folder-contents');
+            folderContentsDiv.innerHTML = ''; // clear previous contents
+            const ul = document.createElement('ul');
+            files.forEach(file => {
+                const li = document.createElement('li');
+                li.textContent = `${file.file_name} (${file.file_size} bytes) - UUID: ${file.file_uuid}`;
+                ul.appendChild(li);
+            });
+            folderContentsDiv.appendChild(ul);
+        });
+
+        document.getElementById('download-file-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const folderId = formData.get('folder_id');
+            const fileUuid = formData.get('file_uuid');
+            const folderPassword = formData.get('folder_password');
+            const response = await fetch(`${serverUrl}/${folderId}/${fileUuid}`, {
+                method: 'GET',
+                headers: {
+                    'X-F-Passwd': folderPassword
+                }
+            });
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileUuid;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            } else {
+                alert('Failed to download file');
+            }
+        });
+    </script>
+</body>
+</html>
